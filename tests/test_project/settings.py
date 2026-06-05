@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -39,7 +38,7 @@ DATABASES = {
     "secondary": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "secondary_db.sqlite3",
-    }
+    },
 }
 
 USE_TZ = True

@@ -1,7 +1,9 @@
 import sys
 import warnings
+
 from django.apps import AppConfig
 from django.conf import settings
+
 
 class NPlus1HunterConfig(AppConfig):
     name = "django_nplus1_hunter"
@@ -15,7 +17,7 @@ class NPlus1HunterConfig(AppConfig):
             # Try to determine if we are running in a test suite.
             # If so, we might not want to scream, but in real production we do.
             is_testing = "test" in sys.argv or "pytest" in sys.modules
-            
+
             if not is_testing:
                 warnings.warn(
                     "\n\n"
