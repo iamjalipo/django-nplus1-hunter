@@ -1,3 +1,4 @@
+import os
 import sys
 import warnings
 
@@ -16,7 +17,9 @@ class NPlus1HunterConfig(AppConfig):
         if not getattr(settings, "DEBUG", False):
             # Try to determine if we are running in a test suite.
             # If so, we might not want to scream, but in real production we do.
-            is_testing = "test" in sys.argv or "pytest" in sys.modules
+            is_testing = (
+                len(sys.argv) > 1 and sys.argv[1] == "test"
+            ) or "PYTEST_CURRENT_TEST" in os.environ
 
             if not is_testing:
                 warnings.warn(
