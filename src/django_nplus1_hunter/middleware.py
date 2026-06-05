@@ -5,6 +5,12 @@ from contextlib import ExitStack
 from django.db import connections
 from .trackers import NPlus1QueryWrapper, get_query_data, clear_query_data
 
+class HighQueryCountDetectedError(Exception):
+    pass
+
+class NPlus1QueryDetectedError(Exception):
+    pass
+
 logger = logging.getLogger("django_nplus1_hunter")
 
 class NPlus1HunterMiddleware:
@@ -20,6 +26,8 @@ class NPlus1HunterMiddleware:
         self.total_query_threshold = getattr(settings, "NPLUS1_HUNTER_TOTAL_THRESHOLD", 50)
         # Paths to completely ignore
         self.ignore_paths = getattr(settings, "NPLUS1_HUNTER_IGNORE_PATHS", [])
+        # Raise exceptions instead of just logging a warning (useful for CI/Tests)
+        self.raise_exception = getattr(settings, "NPLUS1_HUNTER_RAISE_EXCEPTION", False)
 
     def __call__(self, request):
         if not self.enabled or any(request.path.startswith(p) for p in self.ignore_paths):
@@ -28,29 +36,33 @@ class NPlus1HunterMiddleware:
         # Clear any stale data from previous requests on this thread
         clear_query_data()
         
-        # Wrap all database executions for the duration of the request
-        with ExitStack() as stack:
-            for conn in connections.all():
-                stack.enter_context(conn.execute_wrapper(NPlus1QueryWrapper()))
-            response = self.get_response(request)
+        try:
+            # Wrap all database executions for the duration of the request
+            with ExitStack() as stack:
+                for conn in connections.all():
+                    stack.enter_context(conn.execute_wrapper(NPlus1QueryWrapper()))
+                response = self.get_response(request)
+                
+            # Analysis Engine
+            self.analyze_queries(request)
             
-        # Analysis Engine
-        self.analyze_queries(request)
-        
-        # Cleanup memory
-        clear_query_data()
-        
-        return response
+            return response
+        finally:
+            # Cleanup memory
+            clear_query_data()
 
     def analyze_queries(self, request):
         queries = get_query_data()
         total_queries = len(queries)
         
         if total_queries >= self.total_query_threshold:
-            logger.warning(
+            msg = (
                 f"\n[N+1 Hunter] HIGH QUERY COUNT DETECTED: {total_queries} queries "
                 f"executed on {request.path}"
             )
+            logger.warning(msg)
+            if self.raise_exception:
+                raise HighQueryCountDetectedError(msg)
             
         # Detect N+1 patterns by grouping queries by the exact line of user code
         # that generated them. If a loop is executing queries, the same line will
@@ -58,7 +70,7 @@ class NPlus1HunterMiddleware:
         frame_counts = defaultdict(list)
         for q in queries:
             if q["frame"]:
-                key = f"{q['frame'].filename}:{q['frame'].lineno}"
+                key = (q['frame'].filename, q['frame'].lineno, q['frame'].name)
                 frame_counts[key].append(q)
                 
         for frame_key, q_list in frame_counts.items():
@@ -66,9 +78,15 @@ class NPlus1HunterMiddleware:
                 sample_sql = q_list[0]["sql"]
                 if len(sample_sql) > 100:
                     sample_sql = sample_sql[:100] + "..."
-                    
-                logger.warning(
-                    f"\n[N+1 Hunter] N+1 QUERY DETECTED: {len(q_list)} queries originated from "
-                    f"{frame_key}.\n"
+                
+                total_duration = sum(q.get("duration", 0) for q in q_list)
+                filename, lineno, func_name = frame_key
+                msg = (
+                    f"\n[N+1 Hunter] N+1 QUERY DETECTED: {len(q_list)} queries (taking {total_duration:.4f}s total) "
+                    f"originated from {filename}:{lineno} in {func_name}.\n"
                     f"Sample SQL: {sample_sql}\n"
                 )
+                logger.warning(msg)
+                
+                if self.raise_exception:
+                    raise NPlus1QueryDetectedError(msg)

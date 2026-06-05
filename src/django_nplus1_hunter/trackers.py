@@ -1,35 +1,40 @@
 import time
 import traceback
-from threading import local
+from contextvars import ContextVar
 
-# Thread-local storage for queries during a request
-_thread_locals = local()
+# Context-local storage for queries during a request, safe for async/ASGI
+_query_data: ContextVar[list] = ContextVar("query_data")
 
 def get_query_data():
-    """Retrieve the query data for the current thread."""
-    if not hasattr(_thread_locals, 'query_data'):
-        _thread_locals.query_data = []
-    return _thread_locals.query_data
+    """Retrieve the query data for the current context."""
+    try:
+        return _query_data.get()
+    except LookupError:
+        data = []
+        _query_data.set(data)
+        return data
 
 def clear_query_data():
-    """Clear the query data for the current thread."""
-    if hasattr(_thread_locals, 'query_data'):
-        del _thread_locals.query_data
+    """Clear the query data for the current context."""
+    _query_data.set([])
 
 def filter_traceback(tb_list):
     """
-    Filter the traceback to find the first frame that is NOT from django internals.
-    This helps pinpoint the exact line of user code that triggered the query.
+    Filter the traceback to find the first frame that is NOT from django internals
+    or this package. This helps pinpoint the exact line of user code that triggered the query.
     """
     # Start from the bottom of the stack (most recent call) and work backwards
     for tb in reversed(tb_list):
         filename = tb.filename
+        normalized_path = filename.replace('\\', '/')
         
-        # Ignore Django internal database frames
-        if 'django/db/' in filename.replace('\\', '/'):
+        # Ignore Django framework internals
+        if normalized_path.startswith('django/') or '/django/' in normalized_path:
             continue
             
-        # Ignore Python standard library or test runner internals if needed here
+        # Ignore frames from this package
+        if 'django_nplus1_hunter' in normalized_path:
+            continue
         
         return tb
         
