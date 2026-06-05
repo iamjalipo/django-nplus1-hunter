@@ -91,10 +91,31 @@ class NPlus1HunterMiddleware:
 
                 total_duration = sum(q.get("duration", 0) for q in q_list)
                 filename, lineno, func_name = frame_key
+                hunted_ascii = r"""
+  _    _ _   _ _   _ _______ ______ _____  
+ | |  | | | | | \ | |__   __|  ____|  __ \ 
+ | |__| | | | |  \| |  | |  | |__  | |  | |
+ |  __  | | | | . ` |  | |  |  __| | |  | |
+ | |  | | |_| | |\  |  | |  | |____| |__| |
+ |_|  |_|\___/|_| \_|  |_|  |______|_____/ 
+"""
+                
+                import linecache
+                source_code = linecache.getline(filename, lineno).strip()
+                source_display = f"Code snippet: `{source_code}`\n" if source_code else ""
+                
+                tip = (
+                    "💡 Tip: To optimize this, consider using `select_related()` (for ForeignKey/OneToOne) "
+                    "or `prefetch_related()` (for ManyToMany/Reverse relations) on the initial QuerySet."
+                )
+
                 msg = (
+                    f"\n{hunted_ascii}"
                     f"\n[N+1 Hunter] N+1 QUERY DETECTED: {len(q_list)} queries (taking {total_duration:.4f}s total) "
                     f"originated from {filename}:{lineno} in {func_name}.\n"
+                    f"{source_display}"
                     f"Sample SQL: {sample_sql}\n"
+                    f"\n{tip}\n"
                 )
                 logger.warning(msg)
 
