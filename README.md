@@ -16,6 +16,7 @@ N+1 queries are the silent performance killers of Django apps. This tool automat
 - **Async & ASGI Ready:** Built using Python's `contextvars`, guaranteeing absolute thread safety and async isolation without data bleeding between concurrent requests.
 - **Test-Suite Integration:** Capable of raising exceptions rather than just logging warnings, enabling you to actively fail CI/CD pipelines when N+1 queries are introduced.
 - **Production Safe:** Automatically disables itself if `DEBUG = False`. It also raises a startup warning if accidentally deployed to production.
+- **VS Code Extension:** Integrates directly with your editor to show N+1 warnings as squiggly lines exactly where they occur in your code.
 - **Zero Dependencies:** Relies entirely on built-in Python and Django features.
 
 ---
@@ -83,7 +84,30 @@ NPLUS1_HUNTER_IGNORE_PATHS = [
 # to fail the build if an N+1 is introduced.
 # Default: False
 NPLUS1_HUNTER_RAISE_EXCEPTION = False
+
+# Enable writing JSON lines to a log file for IDE integration (like VS Code).
+# Default: True
+NPLUS1_HUNTER_VSCODE_INTEGRATION = True
+
+# The file path where N+1 events are logged for the IDE extension to read.
+# Default: '.nplus1-hunter.jsonl' in your project BASE_DIR
+NPLUS1_HUNTER_LOG_FILE = '.nplus1-hunter.jsonl'
 ```
+
+---
+
+## VS Code Extension
+
+`django-nplus1-hunter` comes with a companion VS Code extension! When an N+1 query is detected, the extension will automatically highlight the exact line of code in your editor with a yellow warning (squiggly line). Hovering over it will display the total query count, execution time, sample SQL, and an optimization tip.
+
+### Setup:
+1. The middleware is already configured to output IDE logs by default (via `NPLUS1_HUNTER_VSCODE_INTEGRATION = True`).
+2. **Install the Extension**:
+   - Download the latest `django-nplus1-hunter-x.x.x.vsix` file from the [GitHub Releases](https://github.com/iamjalipo/django-nplus1-hunter/releases) page.
+   - Open VS Code, go to the Extensions view (Ctrl+Shift+X), click the `...` menu at the top right, and select **"Install from VSIX..."**. Choose the downloaded file.
+3. The extension will automatically activate in your workspace and watch for N+1 warnings.
+
+---
 
 ## Integrity & Security
 

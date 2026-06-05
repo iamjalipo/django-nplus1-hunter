@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+import time
 from collections import defaultdict
 from contextlib import ExitStack
 
@@ -36,6 +39,12 @@ class NPlus1HunterMiddleware:
         self.ignore_paths = getattr(settings, "NPLUS1_HUNTER_IGNORE_PATHS", [])
         # Raise exceptions instead of just logging a warning (useful for CI/Tests)
         self.raise_exception = getattr(settings, "NPLUS1_HUNTER_RAISE_EXCEPTION", False)
+        # Enable writing JSON lines to a log file for IDE integration (e.g. VS Code)
+        self.vscode_integration = getattr(settings, "NPLUS1_HUNTER_VSCODE_INTEGRATION", True)
+        self.log_file = getattr(
+            settings, "NPLUS1_HUNTER_LOG_FILE",
+            os.path.join(getattr(settings, "BASE_DIR", os.getcwd()), ".nplus1-hunter.jsonl")
+        )
 
     def __call__(self, request):
         if not self.enabled or any(
@@ -118,6 +127,23 @@ class NPlus1HunterMiddleware:
                     f"\n{tip}\n"
                 )
                 logger.warning(msg)
+
+                if self.vscode_integration:
+                    try:
+                        payload = {
+                            "timestamp": time.time(),
+                            "file": filename,
+                            "line": lineno,
+                            "function": func_name,
+                            "count": len(q_list),
+                            "duration": total_duration,
+                            "sql": sample_sql,
+                            "tip": tip
+                        }
+                        with open(self.log_file, "a", encoding="utf-8") as f:
+                            f.write(json.dumps(payload) + "\n")
+                    except Exception as e:
+                        logger.error(f"[N+1 Hunter] Failed to write event to {self.log_file}: {e}")
 
                 if self.raise_exception:
                     raise NPlus1QueryDetectedError(msg)

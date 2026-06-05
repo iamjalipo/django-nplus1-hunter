@@ -138,3 +138,44 @@ def test_complex_n_plus_one(client, setup_data, caplog, settings):
     print("\n--- N+1 Hunter Output ---")
     print(caplog.text)
     print("-------------------------\n")
+
+
+@pytest.mark.django_db(databases=["default", "secondary"])
+def test_vscode_integration_jsonl_output(client, setup_data, settings, tmp_path):
+    import json
+    
+    settings.DEBUG = True
+    settings.NPLUS1_HUNTER_VSCODE_INTEGRATION = True
+    
+    # Use a temporary file for the log
+    log_file_path = tmp_path / ".nplus1-hunter-test.jsonl"
+    settings.NPLUS1_HUNTER_LOG_FILE = str(log_file_path)
+    
+    # Call a view that triggers N+1
+    response = client.get("/test-n-plus-one/")
+    assert response.status_code == 200
+    
+    # Verify the JSONL file was created
+    assert log_file_path.exists()
+    
+    # Read and parse the file
+    lines = log_file_path.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) >= 1
+    
+    # Check the payload schema
+    payload = json.loads(lines[-1])
+    assert "timestamp" in payload
+    assert "file" in payload
+    assert "line" in payload
+    assert "function" in payload
+    assert "count" in payload
+    assert "duration" in payload
+    assert "sql" in payload
+    assert "tip" in payload
+    
+    # Verify payload content
+    assert payload["count"] >= 3
+    assert "SELECT" in payload["sql"].upper()
+    assert payload["duration"] >= 0
+    assert payload["function"] == "test_n_plus_one_view" # Or whatever the view function name is
+
