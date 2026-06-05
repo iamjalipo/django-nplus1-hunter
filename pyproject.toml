@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "django-nplus1-hunter"
+dynamic = ["version"]
+description = "A development tool to detect N+1 queries in Django."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Developer", email = "developer@example.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "Django>=5.2",
+]
+
+[project.urls]
+Documentation = "https://github.com/iamjalipo/django-nplus1-hunter#readme"
+Issues = "https://github.com/iamjalipo/django-nplus1-hunter/issues"
+Source = "https://github.com/iamjalipo/django-nplus1-hunter"
+
+[tool.hatch.version]
+path = "src/django_nplus1_hunter/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/django_nplus1_hunter"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = []
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --ds=tests.test_project.settings"
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py310-django52, py311-django52, py312-django52
+isolated_build = True
+
+[testenv]
+deps =
+    django52: Django>=5.2,<6.0
+    pytest
+    pytest-django
+commands =
+    pytest {posargs}
+"""
